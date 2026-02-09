@@ -1,4 +1,4 @@
-import { Package, QrCode } from 'lucide-react';
+import { Package, QrCode, Trash2 } from 'lucide-react';
 import type { Product } from '../types';
 import { formatPrice } from '../utils/barcode';
 
@@ -6,9 +6,10 @@ interface ProductCardProps {
   product: Product;
   onClick?: () => void;
   onAddToCart?: () => void;
+  onDelete?: () => void;
 }
 
-export function ProductCard({ product, onClick, onAddToCart }: ProductCardProps) {
+export function ProductCard({ product, onClick, onAddToCart, onDelete }: ProductCardProps) {
   return (
     <div
       className="flex gap-3 p-3 bg-white border border-gray-200 rounded-lg shadow-sm dark:bg-gray-800 dark:border-gray-700"
@@ -55,16 +56,31 @@ export function ProductCard({ product, onClick, onAddToCart }: ProductCardProps)
         </div>
       </div>
 
-      {/* Add to cart button */}
-      {onAddToCart && (
-        <button
-          onClick={onAddToCart}
-          disabled={product.stock <= 0}
-          className="flex-shrink-0 px-3 py-1 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-        >
-          新增
-        </button>
-      )}
+      {/* Buttons */}
+      <div className="flex flex-col justify-between items-end gap-2">
+        {onDelete && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
+            className="p-2 text-red-500 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20"
+            title="刪除商品"
+          >
+            <Trash2 className="w-5 h-5" />
+          </button>
+        )}
+        
+        {onAddToCart && (
+          <button
+            onClick={onAddToCart}
+            disabled={product.stock <= 0}
+            className="px-3 py-1 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+          >
+            新增
+          </button>
+        )}
+      </div>
     </div>
   );
 }

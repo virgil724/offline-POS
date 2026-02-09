@@ -15,6 +15,7 @@ export function Products() {
     searchQuery,
     loadProducts,
     searchProducts,
+    deleteProduct,
   } = useProductStore();
 
   const [searchInput, setSearchInput] = useState('');
@@ -32,6 +33,16 @@ export function Products() {
   const handlePageChange = (page: number) => {
     if (page >= 1 && page <= totalPages) {
       loadProducts(page);
+    }
+  };
+
+  const handleDelete = async (id: string, name: string) => {
+    if (window.confirm(`確定要刪除商品 "${name}" 嗎？此操作無法復原。`)) {
+      try {
+        await deleteProduct(id);
+      } catch (error) {
+        alert('刪除失敗，請稍後再試。');
+      }
     }
   };
 
@@ -114,6 +125,7 @@ export function Products() {
                   <ProductCard
                     product={product}
                     onClick={() => navigate(`/products/${product.id}/edit`)}
+                    onDelete={() => handleDelete(product.id, product.name)}
                   />
                 </div>
               </div>
