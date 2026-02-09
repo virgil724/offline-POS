@@ -1,24 +1,36 @@
-// Cloudflare Worker - Wrangler v3 Assets + Headers
+// Cloudflare Worker - Wrangler Assets + Headers
 export default {
-  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-    // 讓 Assets 處理靜態資源
-    // 但這裡無法直接修改 headers，需要另一種方式
+  async fetch(request: Request, env: Env): Promise<Response> {
+    const url = new URL(request.url);
+    let response = await env.ASSETS.fetch(request);
 
-    // 暫時直接返回，headers 會在下一個中間件處理
-    return env.ASSETS.fetch(request);
+    // SPA 路由處理：如果找不到檔案 (404) 且請求不是針對特定檔案（不含副檔名）
+    // 則嘗試回傳 index.html
+    if (response.status === 404 && !url.pathname.includes('.')) {
+      const indexRequest = new Request(`${url.origin}/index.html`, request);
+      response = await env.ASSETS.fetch(indexRequest);
+    }
+
+    const newHeaders = new Headers(response.headers);
+    
+    // 確保 SQLite WASM 所需的 headers 存在
+    newHeaders.set('Cross-Origin-Opener-Policy', 'same-origin');
+    newHeaders.set('Cross-Origin-Embedder-Policy', 'require-corp');
+    
+    // PWA 安全性與效能相關 headers
+    newHeaders.set('X-Content-Type-Options', 'nosniff');
+    newHeaders.set('X-Frame-Options', 'DENY');
+
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: newHeaders,
+    });
   },
 };
 
 interface Env {
-  ASSETS: Fetcher;
-}
-
-// 需要這個來讓 TypeScript 認識 ExecutionContext
-interface ExecutionContext {
-  waitUntil(promise: Promise<any>): void;
-  passThroughOnException(): void;
-}
-
-interface Fetcher {
-  fetch(request: Request): Promise<Response>;
+  ASSETS: {
+    fetch: (request: Request) => Promise<Response>;
+  };
 }

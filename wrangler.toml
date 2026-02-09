@@ -1,17 +1,9 @@
 name = "offline-pos"
-main = "workers-site/index.js"
-compatibility_date = "2025-02-09"
+main = "src/worker.ts"
+compatibility_date = "2024-04-03"
 
-# Workers Sites 設定 - 需要先創建 KV namespace
-[[kv_namespaces]]
-binding = "__STATIC_CONTENT"
-id = "your_kv_namespace_id_here"
+[assets]
+directory = "./dist"
+binding = "ASSETS"
 
-# 靜態資源設定
-[site]
-bucket = "./dist"
-
-# 可選：自訂域名
-# [[routes]]
-# pattern = "pos.yourdomain.com"
-# custom_domain = true
+# 這裡不再需要 kv_namespaces 和 [site]
