@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir:*)",
+      "Bash(npm create vite@latest:*)",
+      "Bash(npm install)",
+      "Bash(npm install:*)",
+      "Bash(npx tailwindcss init:*)",
+      "Bash(npm run build:*)",
+      "WebFetch(domain:www.npmjs.com)",
+      "WebFetch(domain:sqlite.org)",
+      "Bash(timeout 10 npm run:*)",
+      "Bash(openssl req:*)",
+      "Bash(ls:*)"
+    ]
+  }
+}
