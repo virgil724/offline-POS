@@ -215,7 +215,7 @@ export function BarcodeExport() {
                     {item.name}
                   </div>
                   <div className="text-sm text-gray-500">
-                    條碼: {item.barcode} | 售價: ${(item.price / 100).toFixed(2)}
+                    條碼: {item.barcode} | 售價: ${Math.round(item.price / 100)}
                   </div>
                 </div>
                 {(codeType === 'barcode' && item.barcodeDataUrl) && (
@@ -252,7 +252,7 @@ export function BarcodeExport() {
                     {item.barcode}
                   </div>
                   <div className="text-xs text-gray-500">
-                    ${(item.price / 100).toFixed(2)}
+                    ${Math.round(item.price / 100)}
                   </div>
                 </div>
               ))}

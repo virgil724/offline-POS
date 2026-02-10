@@ -135,3 +135,118 @@ export async function getTransactionCount(): Promise<number> {
   const result = await selectValue('SELECT COUNT(*) as count FROM transactions');
   return Number(result) || 0;
 }
+
+// Delete a transaction and restore stock
+export async function deleteTransaction(id: string): Promise<void> {
+  await exec({ sql: 'BEGIN TRANSACTION' });
+
+  try {
+    // Get transaction items to restore stock
+    const items = await selectObjects(
+      'SELECT * FROM transaction_items WHERE transactionId = ?',
+      [id]
+    ) as unknown as TransactionItem[];
+
+    // Restore stock for each item
+    for (const item of items) {
+      await exec({
+        sql: `
+          UPDATE products
+          SET stock = stock + ?, updatedAt = ?
+          WHERE id = ?
+        `,
+        bind: [item.quantity, new Date().toISOString(), item.productId],
+      });
+    }
+
+    // Delete transaction items
+    await exec({
+      sql: 'DELETE FROM transaction_items WHERE transactionId = ?',
+      bind: [id],
+    });
+
+    // Delete transaction
+    await exec({
+      sql: 'DELETE FROM transactions WHERE id = ?',
+      bind: [id],
+    });
+
+    await exec({ sql: 'COMMIT' });
+  } catch (error) {
+    await exec({ sql: 'ROLLBACK' });
+    throw error;
+  }
+}
+
+// Update a transaction (delete old items and create new ones)
+export async function updateTransaction(transaction: Transaction): Promise<void> {
+  await exec({ sql: 'BEGIN TRANSACTION' });
+
+  try {
+    // Get old items to restore stock
+    const oldItems = await selectObjects(
+      'SELECT * FROM transaction_items WHERE transactionId = ?',
+      [transaction.id]
+    ) as unknown as TransactionItem[];
+
+    // Restore stock for old items
+    for (const item of oldItems) {
+      await exec({
+        sql: `
+          UPDATE products
+          SET stock = stock + ?, updatedAt = ?
+          WHERE id = ?
+        `,
+        bind: [item.quantity, new Date().toISOString(), item.productId],
+      });
+    }
+
+    // Delete old transaction items
+    await exec({
+      sql: 'DELETE FROM transaction_items WHERE transactionId = ?',
+      bind: [transaction.id],
+    });
+
+    // Update transaction total and timestamp
+    await exec({
+      sql: `
+        UPDATE transactions
+        SET total = ?, createdAt = ?
+        WHERE id = ?
+      `,
+      bind: [transaction.total, transaction.createdAt, transaction.id],
+    });
+
+    // Insert new transaction items and update stock
+    for (const item of transaction.items || []) {
+      await exec({
+        sql: `
+          INSERT INTO transaction_items (transactionId, productId, name, price, quantity)
+          VALUES (?, ?, ?, ?, ?)
+        `,
+        bind: [
+          transaction.id,
+          item.productId,
+          item.name,
+          item.price,
+          item.quantity,
+        ],
+      });
+
+      // Update product stock
+      await exec({
+        sql: `
+          UPDATE products
+          SET stock = stock - ?, updatedAt = ?
+          WHERE id = ?
+        `,
+        bind: [item.quantity, new Date().toISOString(), item.productId],
+      });
+    }
+
+    await exec({ sql: 'COMMIT' });
+  } catch (error) {
+    await exec({ sql: 'ROLLBACK' });
+    throw error;
+  }
+}

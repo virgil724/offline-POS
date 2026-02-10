@@ -9,6 +9,9 @@ import {
   ShoppingCart,
   Check,
   AlertCircle,
+  Banknote,
+  CreditCard,
+  X,
 } from 'lucide-react';
 import { useCartStore } from '../stores/cartStore';
 import { useProductStore } from '../stores/productStore';
@@ -19,14 +22,22 @@ import { ProductCard } from '../components/ProductCard';
 import { BarcodeScanner } from '../components/BarcodeScanner';
 import type { Transaction, TransactionItem } from '../types';
 import { generateUUID, formatPrice } from '../utils/barcode';
+import { loadTwPayAccount, generateBankTransferQR } from '../utils/twpay';
 
 export function Home() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showScanner, setShowScanner] = useState(false);
-  const [showCheckout, setShowCheckout] = useState(false);
+
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const processingBarcodeRef = useRef<string | null>(null);
+
+  // Payment modals
+  const [showCashModal, setShowCashModal] = useState(false);
+  const [showOnlineModal, setShowOnlineModal] = useState(false);
+  const [cashReceived, setCashReceived] = useState('');
+  const [qrCodeData, setQrCodeData] = useState<string | null>(null);
+  const [generatingQR, setGeneratingQR] = useState(false);
 
   const {
     items,
@@ -116,13 +127,56 @@ export function Home() {
 
       await createTransaction(transaction);
       clearCart();
-      setShowCheckout(false);
       setSuccess('交易完成！');
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
       setError('交易失敗，請重試');
       console.error(err);
     }
+  };
+
+  // Handle online payment
+  const handleOnlinePayment = async () => {
+    const account = loadTwPayAccount();
+    
+    setShowOnlineModal(true);
+    
+    // If bank account is configured, generate QR code
+    if (account && account.bankCode && account.accountNumber) {
+      setGeneratingQR(true);
+      try {
+        const qrData = await generateBankTransferQR(account, getTotal());
+        setQrCodeData(qrData);
+      } catch (err) {
+        console.error('QR generation failed:', err);
+        // Continue without QR code
+      } finally {
+        setGeneratingQR(false);
+      }
+    }
+  };
+
+  // Handle cash payment completion
+  const handleCashPayment = async () => {
+    const received = parseInt(cashReceived, 10);
+    const total = Math.round(getTotal() / 100);
+
+    if (isNaN(received) || received < total) {
+      setError('收款金額不足');
+      setTimeout(() => setError(null), 2000);
+      return;
+    }
+
+    await handleCheckout();
+    setShowCashModal(false);
+    setCashReceived('');
+  };
+
+  // Calculate change
+  const calculateChange = () => {
+    const received = parseInt(cashReceived, 10) || 0;
+    const total = Math.round(getTotal() / 100);
+    return Math.max(0, received - total);
   };
 
   return (
@@ -287,12 +341,22 @@ export function Home() {
                       ${formatPrice(getTotal())}
                     </span>
                   </div>
-                  <button
-                    onClick={() => setShowCheckout(true)}
-                    className="w-full py-3 text-lg font-semibold text-white bg-green-600 rounded-lg hover:bg-green-700"
-                  >
-                    完成交易
-                  </button>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => setShowCashModal(true)}
+                      className="flex items-center justify-center gap-2 py-3 text-lg font-semibold text-white bg-green-600 rounded-lg hover:bg-green-700"
+                    >
+                      <Banknote className="w-5 h-5" />
+                      現金交易
+                    </button>
+                    <button
+                      onClick={handleOnlinePayment}
+                      className="flex items-center justify-center gap-2 py-3 text-lg font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+                    >
+                      <CreditCard className="w-5 h-5" />
+                      線上支付
+                    </button>
+                  </div>
                 </div>
               </>
             )}
@@ -308,37 +372,164 @@ export function Home() {
         />
       )}
 
-      {/* Checkout Confirmation Modal */}
-      {showCheckout && (
+      {/* Cash Payment Modal */}
+      {showCashModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
           <div className="w-full max-w-md p-6 bg-white rounded-lg shadow-xl dark:bg-gray-800">
-            <h2 className="mb-4 text-xl font-bold text-gray-900 dark:text-white">
-              確認交易
-            </h2>
-            <div className="mb-4 space-y-2">
-              <div className="flex justify-between text-gray-600 dark:text-gray-400">
-                <span>商品數量</span>
-                <span>{getItemCount()} 件</span>
-              </div>
-              <div className="flex justify-between text-lg font-bold">
-                <span className="text-gray-900 dark:text-white">總計金額</span>
-                <span className="text-blue-600">${formatPrice(getTotal())}</span>
-              </div>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                現金交易
+              </h2>
+              <button
+                onClick={() => {
+                  setShowCashModal(false);
+                  setCashReceived('');
+                }}
+                className="p-1 text-gray-500 hover:text-gray-700 dark:text-gray-400"
+              >
+                <X className="w-6 h-6" />
+              </button>
             </div>
+
+            <div className="mb-6 space-y-4">
+              <div className="p-4 bg-blue-50 rounded-lg dark:bg-blue-900/20">
+                <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">
+                  應收金額
+                </div>
+                <div className="text-3xl font-bold text-blue-600">
+                  ${formatPrice(getTotal())}
+                </div>
+              </div>
+
+              <div>
+                <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                  實收金額
+                </label>
+                <input
+                  type="number"
+                  value={cashReceived}
+                  onChange={(e) => setCashReceived(e.target.value)}
+                  placeholder="輸入收款金額"
+                  min="0"
+                  step="1"
+                  className="w-full px-4 py-3 text-xl border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
+                  autoFocus
+                />
+              </div>
+
+              {cashReceived && parseInt(cashReceived, 10) > 0 && (
+                <div className="p-4 bg-green-50 rounded-lg dark:bg-green-900/20">
+                  <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">
+                    找零金額
+                  </div>
+                  <div className="text-3xl font-bold text-green-600">
+                    ${calculateChange()}
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div className="flex gap-3">
               <button
-                onClick={() => setShowCheckout(false)}
-                className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300"
+                onClick={() => {
+                  setShowCashModal(false);
+                  setCashReceived('');
+                }}
+                className="flex-1 px-4 py-3 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300"
               >
                 取消
               </button>
               <button
-                onClick={handleCheckout}
-                className="flex-1 px-4 py-2 text-white bg-green-600 rounded-lg hover:bg-green-700"
+                onClick={handleCashPayment}
+                disabled={!cashReceived || parseInt(cashReceived, 10) < Math.round(getTotal() / 100)}
+                className="flex-1 px-4 py-3 text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                確認
+                完成收款
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Online Payment Modal */}
+      {showOnlineModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="w-full max-w-sm p-6 bg-white rounded-lg shadow-xl dark:bg-gray-800">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                線上支付
+              </h2>
+              <button
+                onClick={() => {
+                  setShowOnlineModal(false);
+                  setQrCodeData(null);
+                }}
+                className="p-1 text-gray-500 hover:text-gray-700 dark:text-gray-400"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="mb-6 text-center">
+              <div className="mb-4">
+                <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">
+                  應付金額
+                </div>
+                <div className="text-3xl font-bold text-blue-600">
+                  ${formatPrice(getTotal())}
+                </div>
+              </div>
+
+              {generatingQR ? (
+                <div className="py-8">
+                  <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto"></div>
+                  <p className="mt-4 text-gray-600 dark:text-gray-400">
+                    產生 QR 碼中...
+                  </p>
+                </div>
+              ) : qrCodeData ? (
+                <div className="space-y-4">
+                  <div className="bg-white p-4 rounded-lg inline-block">
+                    <img
+                      src={qrCodeData}
+                      alt="Payment QR Code"
+                      className="w-48 h-48"
+                    />
+                  </div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    請掃描 QR 碼進行轉帳
+                  </p>
+                  <button
+                    onClick={handleCheckout}
+                    className="w-full px-4 py-3 text-white bg-green-600 rounded-lg hover:bg-green-700"
+                  >
+                    確認已收款
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <p className="text-sm text-gray-600 dark:text-gray-400 py-4">
+                    顧客完成線上支付後，點擊確認
+                  </p>
+                  <button
+                    onClick={handleCheckout}
+                    className="w-full px-4 py-3 text-white bg-green-600 rounded-lg hover:bg-green-700"
+                  >
+                    確認已收款
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <button
+              onClick={() => {
+                setShowOnlineModal(false);
+                setQrCodeData(null);
+              }}
+              className="w-full px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300"
+            >
+              取消
+            </button>
           </div>
         </div>
       )}

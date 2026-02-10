@@ -24,7 +24,7 @@ export function generateUUID(): string {
 
 // Format price from cents to display (e.g., 1999 -> "19.99")
 export function formatPrice(cents: number): string {
-  return (cents / 100).toFixed(2);
+  return String(Math.round(cents / 100));
 }
 
 // Parse price from input to cents (e.g., "19.99" -> 1999)

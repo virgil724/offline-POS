@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -8,13 +8,46 @@ import {
   Database,
   AlertTriangle,
   Check,
+  CreditCard,
 } from 'lucide-react';
 import { exportDb, importDb } from '../db';
+import type { TwPayAccount } from '../utils/twpay';
+import { loadTwPayAccount, saveTwPayAccount, BANK_NAMES } from '../utils/twpay';
 
 export function Settings() {
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Payment settings
+  const [twPayAccount, setTwPayAccount] = useState<TwPayAccount>({
+    bankCode: '',
+    accountNumber: '',
+    accountName: '',
+  });
+  const [savingPayment, setSavingPayment] = useState(false);
+
+  // Load saved account on mount
+  useEffect(() => {
+    const saved = loadTwPayAccount();
+    if (saved) {
+      setTwPayAccount(saved);
+    }
+  }, []);
+
+  // Save payment settings
+  const handleSavePayment = () => {
+    setSavingPayment(true);
+    try {
+      saveTwPayAccount(twPayAccount);
+      setMessage({ type: 'success', text: '支付設定已儲存！' });
+    } catch (error) {
+      setMessage({ type: 'error', text: '儲存失敗，請重試' });
+    } finally {
+      setSavingPayment(false);
+      setTimeout(() => setMessage(null), 3000);
+    }
+  };
 
   // Export database file
   const handleExport = async () => {
@@ -162,6 +195,97 @@ export function Settings() {
                 />
               </label>
             </div>
+          </div>
+        </section>
+
+        {/* Payment Settings */}
+        <section className="bg-white border border-gray-200 rounded-lg shadow-sm dark:bg-gray-800 dark:border-gray-700">
+          <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center gap-2">
+              <CreditCard className="w-5 h-5 text-blue-600" />
+              <h2 className="font-semibold text-gray-900 dark:text-white">支付設定</h2>
+            </div>
+          </div>
+
+          <div className="p-4 space-y-4">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              設定線上支付帳號，顧客可掃描 QR 碼進行轉帳付款
+            </p>
+
+            {/* Bank Code */}
+            <div>
+              <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                銀行代碼
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={twPayAccount.bankCode}
+                  onChange={(e) =>
+                    setTwPayAccount((prev) => ({
+                      ...prev,
+                      bankCode: e.target.value.replace(/\D/g, '').slice(0, 3),
+                    }))
+                  }
+                  placeholder="例如：013"
+                  maxLength={3}
+                  className="w-24 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
+                />
+                <div className="flex items-center px-3 text-sm text-gray-600 dark:text-gray-400">
+                  {BANK_NAMES[twPayAccount.bankCode] || '請輸入銀行代碼'}
+                </div>
+              </div>
+              <p className="mt-1 text-xs text-gray-500">
+                請輸入 3 位數銀行代碼（如：013 為國泰世華）
+              </p>
+            </div>
+
+            {/* Account Number */}
+            <div>
+              <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                銀行帳號
+              </label>
+              <input
+                type="text"
+                value={twPayAccount.accountNumber}
+                onChange={(e) =>
+                  setTwPayAccount((prev) => ({
+                    ...prev,
+                    accountNumber: e.target.value,
+                  }))
+                }
+                placeholder="請輸入銀行帳號"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
+              />
+            </div>
+
+            {/* Account Name */}
+            <div>
+              <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                戶名
+              </label>
+              <input
+                type="text"
+                value={twPayAccount.accountName}
+                onChange={(e) =>
+                  setTwPayAccount((prev) => ({
+                    ...prev,
+                    accountName: e.target.value,
+                  }))
+                }
+                placeholder="請輸入帳戶名稱"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
+              />
+            </div>
+
+            {/* Save Button */}
+            <button
+              onClick={handleSavePayment}
+              disabled={savingPayment}
+              className="w-full px-4 py-2 text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {savingPayment ? '儲存中...' : '儲存支付設定'}
+            </button>
           </div>
         </section>
 
