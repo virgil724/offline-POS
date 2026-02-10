@@ -22,7 +22,10 @@ export interface TransactionItem {
 export interface Transaction {
   id: string;              // UUID v4
   items?: TransactionItem[];  // Optional: only included when fetching full transaction details
-  total: number;           // 總計金額（分）
+  total: number;           // 總計金額（分）- 折扣後金額
+  originalTotal?: number;  // 原始金額（分）- 折扣前
+  discountAmount?: number; // 折扣金額（分）
+  discountLabel?: string;  // 折扣說明
   createdAt: string;       // ISO 8601
 }
 

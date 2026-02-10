@@ -137,7 +137,7 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
   }, []);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-90">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-90 pt-[max(env(safe-area-inset-top),24px)]">
       <div className="relative w-full max-w-md p-4">
         {/* Header */}
         <div className="flex items-center justify-between mb-4">

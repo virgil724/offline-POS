@@ -38,6 +38,8 @@ export function Home() {
   const [cashReceived, setCashReceived] = useState('');
   const [qrCodeData, setQrCodeData] = useState<string | null>(null);
   const [generatingQR, setGeneratingQR] = useState(false);
+  const [showDiscountModal, setShowDiscountModal] = useState(false);
+  const [customDiscount, setCustomDiscount] = useState('');
 
   const {
     items,
@@ -46,6 +48,12 @@ export function Home() {
     clearCart,
     getTotal,
     getItemCount,
+    discount,
+    getFinalTotal,
+    applyRoundDown10,
+    applyRoundDown100,
+    applyPercentDiscount,
+    clearDiscount,
   } = useCartStore();
 
   // Wrapper for updateQuantity with feedback
@@ -121,12 +129,17 @@ export function Home() {
       const transaction: Transaction = {
         id: generateUUID(),
         items: transactionItems,
-        total: getTotal(),
+        total: getFinalTotal(),
+        originalTotal: getTotal(),
+        discountAmount: discount?.amount,
+        discountLabel: discount?.label,
         createdAt: new Date().toISOString(),
       };
 
       await createTransaction(transaction);
       clearCart();
+      setShowDiscountModal(false);
+      setCustomDiscount('');
       setSuccess('交易完成！');
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
@@ -145,14 +158,14 @@ export function Home() {
   // Handle online payment
   const handleOnlinePayment = async () => {
     const account = loadTwPayAccount();
-    
+
     setShowOnlineModal(true);
-    
+
     // If bank account is configured, generate QR code
     if (account && account.bankCode && account.accountNumber) {
       setGeneratingQR(true);
       try {
-        const qrData = await generateBankTransferQR(account, getTotal());
+        const qrData = await generateBankTransferQR(account, getFinalTotal());
         setQrCodeData(qrData);
       } catch (err) {
         console.error('QR generation failed:', err);
@@ -166,7 +179,7 @@ export function Home() {
   // Handle cash payment completion
   const handleCashPayment = async () => {
     const received = parseInt(cashReceived, 10);
-    const total = Math.round(getTotal() / 100);
+    const total = Math.round(getFinalTotal() / 100);
 
     if (isNaN(received) || received < total) {
       setError('收款金額不足');
@@ -182,7 +195,7 @@ export function Home() {
   // Calculate change
   const calculateChange = () => {
     const received = parseInt(cashReceived, 10) || 0;
-    const total = Math.round(getTotal() / 100);
+    const total = Math.round(getFinalTotal() / 100);
     return Math.max(0, received - total);
   };
 
@@ -340,14 +353,55 @@ export function Home() {
 
                 {/* Cart total */}
                 <div className="p-4 bg-white border border-gray-200 rounded-lg shadow-sm dark:bg-gray-800 dark:border-gray-700">
-                  <div className="flex items-center justify-between mb-4">
+                  {/* Original total */}
+                  <div className="flex items-center justify-between mb-2">
                     <span className="text-lg font-medium text-gray-700 dark:text-gray-300">
-                      合計
+                      小計
                     </span>
-                    <span className="text-2xl font-bold text-blue-600">
+                    <span className={`text-xl ${discount ? 'text-gray-500 line-through' : 'text-blue-600 font-bold'}`}>
                       ${formatPrice(getTotal())}
                     </span>
                   </div>
+
+                  {/* Discount info */}
+                  {discount && (
+                    <div className="flex items-center justify-between mb-2 text-green-600">
+                      <span className="text-sm">{discount.label}</span>
+                      <span className="text-sm font-medium">-${formatPrice(discount.amount)}</span>
+                    </div>
+                  )}
+
+                  {/* Final total */}
+                  {discount && (
+                    <div className="flex items-center justify-between mb-4 pt-2 border-t border-gray-200 dark:border-gray-700">
+                      <span className="text-lg font-medium text-gray-900 dark:text-white">
+                        應收
+                      </span>
+                      <span className="text-2xl font-bold text-blue-600">
+                        ${formatPrice(getFinalTotal())}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Quick discount buttons */}
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {!discount ? (
+                      <button
+                        onClick={() => setShowDiscountModal(true)}
+                        className="px-3 py-1.5 text-sm bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 dark:bg-purple-900/30 dark:text-purple-400"
+                      >
+                        本單折扣
+                      </button>
+                    ) : (
+                      <button
+                        onClick={clearDiscount}
+                        className="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300"
+                      >
+                        清除折扣
+                      </button>
+                    )}
+                  </div>
+
                   <div className="grid grid-cols-2 gap-3">
                     <button
                       onClick={() => setShowCashModal(true)}
@@ -400,11 +454,24 @@ export function Home() {
 
             <div className="mb-6 space-y-4">
               <div className="p-4 bg-blue-50 rounded-lg dark:bg-blue-900/20">
+                {discount && (
+                  <>
+                    <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">
+                      原價
+                    </div>
+                    <div className="text-xl text-gray-500 line-through mb-2">
+                      ${formatPrice(getTotal())}
+                    </div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-sm text-green-600 font-medium">{discount.label}</span>
+                    </div>
+                  </>
+                )}
                 <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">
-                  應收金額
+                  {discount ? '應收金額' : '應收金額'}
                 </div>
                 <div className="text-3xl font-bold text-blue-600">
-                  ${formatPrice(getTotal())}
+                  ${formatPrice(getFinalTotal())}
                 </div>
               </div>
 
@@ -448,7 +515,7 @@ export function Home() {
               </button>
               <button
                 onClick={handleCashPayment}
-                disabled={!cashReceived || parseInt(cashReceived, 10) < Math.round(getTotal() / 100)}
+                disabled={!cashReceived || parseInt(cashReceived, 10) < Math.round(getFinalTotal() / 100)}
                 className="flex-1 px-4 py-3 text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 完成收款
@@ -479,11 +546,24 @@ export function Home() {
 
             <div className="mb-6 text-center">
               <div className="mb-4">
+                {discount && (
+                  <>
+                    <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">
+                      原價
+                    </div>
+                    <div className="text-xl text-gray-500 line-through mb-2">
+                      ${formatPrice(getTotal())}
+                    </div>
+                    <div className="text-sm text-green-600 font-medium mb-1">
+                      {discount.label}
+                    </div>
+                  </>
+                )}
                 <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">
                   應付金額
                 </div>
                 <div className="text-3xl font-bold text-blue-600">
-                  ${formatPrice(getTotal())}
+                  ${formatPrice(getFinalTotal())}
                 </div>
               </div>
 
@@ -534,6 +614,134 @@ export function Home() {
                 setQrCodeData(null);
               }}
               className="w-full px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300"
+            >
+              取消
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Discount Modal */}
+      {showDiscountModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="w-full max-w-sm p-6 bg-white rounded-lg shadow-xl dark:bg-gray-800">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                選擇折扣
+              </h2>
+              <button
+                onClick={() => {
+                  setShowDiscountModal(false);
+                  setCustomDiscount('');
+                }}
+                className="p-1 text-gray-500 hover:text-gray-700 dark:text-gray-400"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            {/* Current total */}
+            <div className="mb-4 p-3 bg-gray-50 rounded-lg dark:bg-gray-900">
+              <div className="text-sm text-gray-600 dark:text-gray-400">原價</div>
+              <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                ${formatPrice(getTotal())}
+              </div>
+            </div>
+
+            {/* Preset discount buttons */}
+            <div className="grid grid-cols-3 gap-2 mb-4">
+              {[95, 90, 85, 80, 70, 50].map((percent) => (
+                <button
+                  key={percent}
+                  onClick={() => {
+                    applyPercentDiscount(percent);
+                    setShowDiscountModal(false);
+                    setCustomDiscount('');
+                  }}
+                  className="py-3 text-sm font-medium bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 dark:bg-purple-900/30 dark:text-purple-400"
+                >
+                  {percent}折
+                </button>
+              ))}
+            </div>
+
+            {/* Round down options */}
+            <div className="grid grid-cols-2 gap-2 mb-4">
+              <button
+                onClick={() => {
+                  applyRoundDown10();
+                  setShowDiscountModal(false);
+                }}
+                disabled={getTotal() % 1000 === 0}
+                className="py-3 text-sm font-medium bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-orange-900/30 dark:text-orange-400"
+              >
+                去個位數
+              </button>
+              <button
+                onClick={() => {
+                  applyRoundDown100();
+                  setShowDiscountModal(false);
+                }}
+                disabled={getTotal() % 10000 === 0}
+                className="py-3 text-sm font-medium bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-orange-900/30 dark:text-orange-400"
+              >
+                去十位數
+              </button>
+            </div>
+
+            {/* Custom discount input */}
+            <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+              <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                自訂折扣
+              </label>
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <input
+                    type="number"
+                    value={customDiscount}
+                    onChange={(e) => setCustomDiscount(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        const percent = parseInt(customDiscount, 10);
+                        if (!isNaN(percent) && percent >= 1 && percent <= 99) {
+                          applyPercentDiscount(percent);
+                          setShowDiscountModal(false);
+                          setCustomDiscount('');
+                        }
+                      }
+                    }}
+                    placeholder="輸入如 88"
+                    min="1"
+                    max="99"
+                    className="w-full px-4 py-2.5 text-lg border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
+                    autoFocus
+                  />
+                  <span className="absolute right-3 top-3 text-gray-500">折</span>
+                </div>
+                <button
+                  onClick={() => {
+                    const percent = parseInt(customDiscount, 10);
+                    if (!isNaN(percent) && percent >= 1 && percent <= 99) {
+                      applyPercentDiscount(percent);
+                      setShowDiscountModal(false);
+                      setCustomDiscount('');
+                    }
+                  }}
+                  disabled={!customDiscount || parseInt(customDiscount, 10) < 1 || parseInt(customDiscount, 10) > 99}
+                  className="px-4 py-2.5 text-white bg-purple-600 rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  套用
+                </button>
+              </div>
+              <p className="mt-1 text-xs text-gray-500">輸入 1-99 的數字，如 88 表示 88 折</p>
+            </div>
+
+            <button
+              onClick={() => {
+                setShowDiscountModal(false);
+                setCustomDiscount('');
+              }}
+              className="w-full mt-4 px-4 py-2.5 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300"
             >
               取消
             </button>

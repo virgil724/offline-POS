@@ -9,10 +9,17 @@ export async function createTransaction(transaction: Transaction): Promise<void>
     // Insert transaction
     await exec({
       sql: `
-        INSERT INTO transactions (id, total, createdAt)
-        VALUES (?, ?, ?)
+        INSERT INTO transactions (id, total, originalTotal, discountAmount, discountLabel, createdAt)
+        VALUES (?, ?, ?, ?, ?, ?)
       `,
-      bind: [transaction.id, transaction.total, transaction.createdAt],
+      bind: [
+        transaction.id,
+        transaction.total,
+        transaction.originalTotal ?? null,
+        transaction.discountAmount ?? null,
+        transaction.discountLabel ?? null,
+        transaction.createdAt,
+      ],
     });
 
     // Insert transaction items and update stock
@@ -207,14 +214,21 @@ export async function updateTransaction(transaction: Transaction): Promise<void>
       bind: [transaction.id],
     });
 
-    // Update transaction total and timestamp
+    // Update transaction total, discount and timestamp
     await exec({
       sql: `
         UPDATE transactions
-        SET total = ?, createdAt = ?
+        SET total = ?, originalTotal = ?, discountAmount = ?, discountLabel = ?, createdAt = ?
         WHERE id = ?
       `,
-      bind: [transaction.total, transaction.createdAt, transaction.id],
+      bind: [
+        transaction.total,
+        transaction.originalTotal ?? null,
+        transaction.discountAmount ?? null,
+        transaction.discountLabel ?? null,
+        transaction.createdAt,
+        transaction.id,
+      ],
     });
 
     // Insert new transaction items and update stock

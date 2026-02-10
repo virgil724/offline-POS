@@ -181,6 +181,9 @@ function initSchema() {
     CREATE TABLE IF NOT EXISTS transactions (
       id TEXT PRIMARY KEY,
       total INTEGER NOT NULL,
+      originalTotal INTEGER,
+      discountAmount INTEGER,
+      discountLabel TEXT,
       createdAt TEXT NOT NULL
     );
   `);
