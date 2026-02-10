@@ -1,4 +1,4 @@
-import type { Transaction, TransactionItem } from '../types';
+import type { Transaction } from '../types';
 
 /**
  * 將交易資料轉換為 CSV 格式並下載
