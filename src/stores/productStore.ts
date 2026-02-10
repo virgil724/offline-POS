@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import type { Product } from '../types';
 import * as db from '../db/products';
 
+export const MAX_PRODUCTS = 20;
+
 interface ProductState {
   products: Product[];
   loading: boolean;
@@ -65,6 +67,10 @@ export const useProductStore = create<ProductState>((set, get) => ({
 
   addProduct: async (product: Product) => {
     try {
+      const count = await db.getProductCount();
+      if (count >= MAX_PRODUCTS) {
+        throw new Error(`商品數量已達上限 (${MAX_PRODUCTS})，無法再新增。`);
+      }
       await db.createProduct(product);
       await get().refresh();
     } catch (error) {

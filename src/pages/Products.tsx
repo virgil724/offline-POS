@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, Search, ChevronLeft, ChevronRight, Package, Barcode } from 'lucide-react';
-import { useProductStore } from '../stores/productStore';
+import { Plus, Search, ChevronLeft, ChevronRight, Package, Barcode, AlertCircle } from 'lucide-react';
+import { useProductStore, MAX_PRODUCTS } from '../stores/productStore';
 import { ProductCard } from '../components/ProductCard';
 
 export function Products() {
@@ -95,12 +95,35 @@ export function Products() {
             <span className="hidden sm:inline">條碼</span>
           </Link>
           <Link
-            to="/products/new"
-            className="flex items-center gap-1 px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+            to={totalCount >= MAX_PRODUCTS ? '#' : '/products/new'}
+            onClick={(e) => {
+              if (totalCount >= MAX_PRODUCTS) {
+                e.preventDefault();
+                alert(`商品數量已達上限 (${MAX_PRODUCTS})，無法再新增。`);
+              }
+            }}
+            className={`flex items-center gap-1 px-4 py-2 text-white rounded-lg transition-colors ${
+              totalCount >= MAX_PRODUCTS
+                ? 'bg-gray-400 cursor-not-allowed'
+                : 'bg-blue-600 hover:bg-blue-700'
+            }`}
           >
             <Plus className="w-5 h-5" />
             新增
           </Link>
+        </div>
+
+        {/* Product limit info */}
+        <div className="flex items-center justify-between mb-4 px-1">
+          <div className="text-sm text-gray-600 dark:text-gray-400">
+            商品總量: <span className={totalCount >= MAX_PRODUCTS ? 'text-orange-600 font-bold' : ''}>{totalCount}</span> / {MAX_PRODUCTS}
+          </div>
+          {totalCount >= MAX_PRODUCTS && (
+            <div className="flex items-center gap-1 text-xs text-orange-600 font-medium">
+              <AlertCircle className="w-4 h-4" />
+              已達免費版上限
+            </div>
+          )}
         </div>
 
         {/* Search result indicator */}

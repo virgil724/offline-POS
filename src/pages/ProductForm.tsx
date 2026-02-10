@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Camera, Package, QrCode, RefreshCw } from 'lucide-react';
-import { useProductStore } from '../stores/productStore';
+import { useProductStore, MAX_PRODUCTS } from '../stores/productStore';
 import { barcodeExists } from '../db/products';
 import type { Product } from '../types';
 import { generateUUID, generateBarcode, formatPrice, parsePrice } from '../utils/barcode';
@@ -54,6 +54,11 @@ export function ProductForm() {
           navigate('/products');
         }
       } else {
+        // Check limit for new products
+        const count = useProductStore.getState().totalCount;
+        if (count >= MAX_PRODUCTS) {
+          setError(`商品數量已達上限 (${MAX_PRODUCTS})，無法再新增。`);
+        }
         // Generate barcode for new product
         await generateNewBarcode();
       }
@@ -125,6 +130,15 @@ export function ProductForm() {
     }
 
     const now = new Date().toISOString();
+
+    if (!isEdit) {
+      const count = await useProductStore.getState().totalCount;
+      if (count >= MAX_PRODUCTS) {
+        setError(`商品數量已達上限 (${MAX_PRODUCTS})，無法再新增。`);
+        return;
+      }
+    }
+
     const productData: Product = {
       id: isEdit ? id! : generateUUID(),
       name: formData.name.trim(),
@@ -327,7 +341,7 @@ export function ProductForm() {
             </button>
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || (!isEdit && useProductStore.getState().totalCount >= MAX_PRODUCTS)}
               className="flex-1 px-4 py-3 min-h-[48px] text-white bg-blue-600 rounded-lg hover:bg-blue-700 active:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation select-none"
             >
               {loading ? '儲存中...' : '儲存'}
