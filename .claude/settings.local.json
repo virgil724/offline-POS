@@ -11,7 +11,8 @@
       "WebFetch(domain:sqlite.org)",
       "Bash(timeout 10 npm run:*)",
       "Bash(openssl req:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(npm run lint:*)"
     ]
   }
 }

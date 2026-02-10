@@ -135,6 +135,13 @@ export function Home() {
     }
   };
 
+  // Handle online payment completion
+  const handleOnlinePaymentComplete = async () => {
+    await handleCheckout();
+    setShowOnlineModal(false);
+    setQrCodeData(null);
+  };
+
   // Handle online payment
   const handleOnlinePayment = async () => {
     const account = loadTwPayAccount();
@@ -500,7 +507,7 @@ export function Home() {
                     請掃描 QR 碼進行轉帳
                   </p>
                   <button
-                    onClick={handleCheckout}
+                    onClick={handleOnlinePaymentComplete}
                     className="w-full px-4 py-3 text-white bg-green-600 rounded-lg hover:bg-green-700"
                   >
                     確認已收款
@@ -512,7 +519,7 @@ export function Home() {
                     顧客完成線上支付後，點擊確認
                   </p>
                   <button
-                    onClick={handleCheckout}
+                    onClick={handleOnlinePaymentComplete}
                     className="w-full px-4 py-3 text-white bg-green-600 rounded-lg hover:bg-green-700"
                   >
                     確認已收款

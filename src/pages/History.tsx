@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Calendar, Receipt, TrendingUp, Trash2, Edit2, X, Plus, Minus, AlertCircle, Check } from 'lucide-react';
+import { ArrowLeft, Calendar, Receipt, TrendingUp, Trash2, Edit2, X, Plus, Minus, AlertCircle, Check, Download } from 'lucide-react';
 import { getTodayTransactions, getTodayStats, getTransactionById, deleteTransaction, updateTransaction } from '../db/transactions';
+import { exportTransactionsToCSV } from '../utils/csv';
 import { getProductByBarcode } from '../db/products';
 import type { Transaction, TransactionItem } from '../types';
 import { formatPrice, formatDate } from '../utils/barcode';
@@ -218,6 +219,30 @@ export function History() {
     return editItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
   };
 
+  // Handle export to CSV with full transaction data
+  const handleExportCSV = async () => {
+    setLoading(true);
+    try {
+      // Load full transaction data (with items) for all transactions
+      const fullTransactions = await Promise.all(
+        transactions.map(async (t) => {
+          if (t.items) {
+            return t;
+          }
+          const full = await getTransactionById(t.id);
+          return full || t;
+        })
+      );
+      exportTransactionsToCSV(fullTransactions);
+    } catch (err) {
+      console.error('Failed to export:', err);
+      setError('匯出失敗，請重試');
+      setTimeout(() => setError(null), 3000);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Header */}
@@ -272,6 +297,20 @@ export function History() {
             <p className="text-2xl font-bold text-green-600">{stats.count}</p>
           </div>
         </div>
+
+        {/* Export button */}
+        {transactions.length > 0 && (
+          <div className="mb-4 flex justify-end">
+            <button
+              onClick={handleExportCSV}
+              disabled={loading}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Download className="w-4 h-4" />
+              {loading ? '載入中...' : '導出 CSV'}
+            </button>
+          </div>
+        )}
 
         {/* Transactions list */}
         <div className="space-y-3">
