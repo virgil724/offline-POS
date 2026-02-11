@@ -203,4 +203,24 @@ function initSchema() {
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_transaction_items_transactionId ON transaction_items(transactionId);
   `);
+
+  // 組合商品項目表（連動庫存）
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS bundle_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      bundleId TEXT NOT NULL,
+      productId TEXT NOT NULL,
+      quantity INTEGER NOT NULL DEFAULT 1,
+      FOREIGN KEY (bundleId) REFERENCES products(id) ON DELETE CASCADE,
+      FOREIGN KEY (productId) REFERENCES products(id) ON DELETE CASCADE
+    );
+  `);
+
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_bundle_items_bundleId ON bundle_items(bundleId);
+  `);
+
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_bundle_items_productId ON bundle_items(productId);
+  `);
 }

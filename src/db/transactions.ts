@@ -1,5 +1,6 @@
 import { exec, selectObject, selectObjects, selectValue } from './index';
 import type { Transaction, TransactionItem } from '../types';
+import { updateStock } from './products';
 
 // Create a new transaction with items (within a database transaction)
 export async function createTransaction(transaction: Transaction): Promise<void> {
@@ -38,15 +39,8 @@ export async function createTransaction(transaction: Transaction): Promise<void>
         ],
       });
 
-      // Update product stock
-      await exec({
-        sql: `
-          UPDATE products
-          SET stock = stock - ?, updatedAt = ?
-          WHERE id = ?
-        `,
-        bind: [item.quantity, new Date().toISOString(), item.productId],
-      });
+      // Update stock (handles both regular products and bundles)
+      await updateStock(item.productId, -item.quantity);
     }
 
     // Commit the transaction
@@ -156,14 +150,7 @@ export async function deleteTransaction(id: string): Promise<void> {
 
     // Restore stock for each item
     for (const item of items) {
-      await exec({
-        sql: `
-          UPDATE products
-          SET stock = stock + ?, updatedAt = ?
-          WHERE id = ?
-        `,
-        bind: [item.quantity, new Date().toISOString(), item.productId],
-      });
+      await updateStock(item.productId, item.quantity);
     }
 
     // Delete transaction items
@@ -198,14 +185,7 @@ export async function updateTransaction(transaction: Transaction): Promise<void>
 
     // Restore stock for old items
     for (const item of oldItems) {
-      await exec({
-        sql: `
-          UPDATE products
-          SET stock = stock + ?, updatedAt = ?
-          WHERE id = ?
-        `,
-        bind: [item.quantity, new Date().toISOString(), item.productId],
-      });
+      await updateStock(item.productId, item.quantity);
     }
 
     // Delete old transaction items
@@ -247,15 +227,8 @@ export async function updateTransaction(transaction: Transaction): Promise<void>
         ],
       });
 
-      // Update product stock
-      await exec({
-        sql: `
-          UPDATE products
-          SET stock = stock - ?, updatedAt = ?
-          WHERE id = ?
-        `,
-        bind: [item.quantity, new Date().toISOString(), item.productId],
-      });
+      // Update stock
+      await updateStock(item.productId, -item.quantity);
     }
 
     await exec({ sql: 'COMMIT' });

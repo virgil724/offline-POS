@@ -1,20 +1,19 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Trash2, Package, Search, Sparkles, X } from 'lucide-react';
+import { ArrowLeft, Trash2, Package, Search, Sparkles, X, AlertCircle } from 'lucide-react';
 import { useProductStore, MAX_PRODUCTS } from '../stores/productStore';
 import { barcodeExists, searchProducts } from '../db/products';
+import { createBundleProduct, type BundleItem } from '../db/bundles';
 import { generateBarcode, formatPrice, parsePrice } from '../utils/barcode';
-import { generateBundleProduct, calculateBundleOriginalTotal, calculateBundleSavings, type BundleItem } from '../utils/productVariants';
 import type { Product } from '../types';
 
 export function BundleProductForm() {
   const navigate = useNavigate();
-  const { addProduct, totalCount } = useProductStore();
+  const { totalCount } = useProductStore();
 
   // 基本資訊
   const [name, setName] = useState('');
   const [bundlePrice, setBundlePrice] = useState('');
-  const [stock, setStock] = useState('10');
 
   // 組合項目
   const [items, setItems] = useState<BundleItem[]>([]);
@@ -51,6 +50,21 @@ export function BundleProductForm() {
     return () => clearTimeout(timeout);
   }, [searchQuery, items]);
 
+  // 計算可組合數量
+  const calculateMaxBundles = useCallback((): number => {
+    if (items.length === 0) return 0;
+    
+    let minBundles = Infinity;
+    for (const item of items) {
+      if (item.quantity <= 0 || item.stock === undefined) continue;
+      const possible = Math.floor(item.stock / item.quantity);
+      if (possible < minBundles) {
+        minBundles = possible;
+      }
+    }
+    return minBundles === Infinity ? 0 : minBundles;
+  }, [items]);
+
   // 新增項目到組合
   const addItem = (product: Product) => {
     const existingItem = items.find(i => i.productId === product.id);
@@ -68,6 +82,7 @@ export function BundleProductForm() {
         name: product.name,
         price: product.price,
         quantity: 1,
+        stock: product.stock, // 保存原始庫存
       }]);
     }
     setSearchQuery('');
@@ -93,11 +108,14 @@ export function BundleProductForm() {
   };
 
   // 計算原價
-  const originalTotal = calculateBundleOriginalTotal(items);
+  const originalTotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
   
   // 計算折扣
   const bundlePriceNum = parsePrice(bundlePrice);
-  const savings = calculateBundleSavings(items, bundlePriceNum);
+  const savings = Math.max(0, originalTotal - bundlePriceNum);
+  
+  // 可組合數量
+  const maxBundles = calculateMaxBundles();
 
   // 快速設定組合價
   const applyDiscountPercent = (percent: number) => {
@@ -128,9 +146,9 @@ export function BundleProductForm() {
       return;
     }
 
-    const stockNum = parseInt(stock, 10);
-    if (isNaN(stockNum) || stockNum < 0) {
-      setError('請輸入有效的庫存數量');
+    // 檢查是否有足夠庫存
+    if (maxBundles <= 0) {
+      setError('內含商品庫存不足，無法建立組合');
       return;
     }
 
@@ -143,17 +161,31 @@ export function BundleProductForm() {
     setLoading(true);
 
     try {
-      const product = await generateBundleProduct(
-        {
-          name: name.trim(),
-          bundlePrice: price,
-          stock: stockNum,
-          items,
-        },
-        generateNewBarcode
-      );
+      const now = new Date().toISOString();
+      const bundleId = crypto.randomUUID();
 
-      await addProduct(product);
+      // 準備組合商品資料
+      const product: Product = {
+        id: bundleId,
+        name: name.trim(),
+        price: price,
+        stock: maxBundles, // 自動計算的可組合數量
+        barcode: await generateNewBarcode(),
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      // 準備組合項目（移除 stock 欄位）
+      const bundleItems: BundleItem[] = items.map(item => ({
+        productId: item.productId,
+        name: item.name,
+        price: item.price,
+        quantity: item.quantity,
+      }));
+
+      // 創建組合商品
+      await createBundleProduct(product, bundleItems);
+
       navigate('/products');
     } catch (err) {
       setError('建立失敗，請重試');
@@ -175,7 +207,7 @@ export function BundleProductForm() {
             <ArrowLeft className="w-5 h-5" />
           </button>
           <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-            新增組合商品
+            新增組合商品（連動庫存）
           </h1>
         </div>
       </header>
@@ -265,22 +297,28 @@ export function BundleProductForm() {
                 )}
               </div>
 
-              {/* 庫存 */}
-              <div>
-                <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-                  組合庫存 <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={stock}
-                  onChange={(e) => setStock(e.target.value)}
-                  placeholder="0"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
-                />
-                <p className="mt-1 text-xs text-gray-500">組合庫存獨立計算，不與內含商品連動</p>
-              </div>
+              {/* 可組合數量顯示 */}
+              {items.length > 0 && (
+                <div className={`p-3 rounded-lg ${maxBundles > 0 ? 'bg-green-50 border border-green-200 dark:bg-green-900/20 dark:border-green-800' : 'bg-red-50 border border-red-200 dark:bg-red-900/20 dark:border-red-800'}`}>
+                  <div className="flex items-center gap-2">
+                    {maxBundles > 0 ? (
+                      <>
+                        <Package className="w-5 h-5 text-green-600" />
+                        <span className="text-green-800 dark:text-green-400">
+                          目前可組合 <strong>{maxBundles}</strong> 組
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <AlertCircle className="w-5 h-5 text-red-600" />
+                        <span className="text-red-800 dark:text-red-400">
+                          庫存不足，無法組合
+                        </span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -307,7 +345,7 @@ export function BundleProductForm() {
                         {item.name}
                       </p>
                       <p className="text-sm text-gray-500">
-                        ${formatPrice(item.price)} / 個
+                        ${formatPrice(item.price)} / 個 · 庫存: {item.stock}
                       </p>
                     </div>
                     <div className="flex items-center gap-3">
@@ -435,12 +473,12 @@ export function BundleProductForm() {
           {/* 提示 */}
           <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg dark:bg-yellow-900/20 dark:border-yellow-800">
             <p className="text-sm text-yellow-800 dark:text-yellow-400">
-              <strong>說明：</strong>組合商品是一個獨立的商品，購買時會扣減此組合的庫存。
-              內含商品的庫存不會自動連動，請自行管理。
+              <strong>連動庫存說明：</strong>組合庫存會根據內含商品的庫存自動計算。
+              賣出組合時會同時扣減各商品的庫存。當內含商品庫存變動時，組合的可銷售數量也會自動更新。
             </p>
           </div>
 
-          {/* 提交按鈕 */}
+          {/* 提交按 */}
           <div className="flex gap-3 pt-4 pb-safe sticky bottom-0 bg-gray-50 dark:bg-gray-900 py-4 -mx-4 px-4">
             <button
               type="button"
@@ -451,7 +489,7 @@ export function BundleProductForm() {
             </button>
             <button
               type="submit"
-              disabled={loading || totalCount >= MAX_PRODUCTS}
+              disabled={loading || totalCount >= MAX_PRODUCTS || maxBundles <= 0}
               className="flex-1 px-4 py-3 min-h-[48px] text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? '建立中...' : '建立組合商品'}

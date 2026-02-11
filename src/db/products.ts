@@ -1,5 +1,6 @@
 import { exec, selectObject, selectObjects, selectValue } from './index';
 import type { Product } from '../types';
+import { updateAllBundleStocks, isBundleProduct, getBundleItems, updateBundleStockFromComponents, getBundlesContainingProduct } from './bundles';
 
 // Create a new product
 export async function createProduct(product: Product): Promise<void> {
@@ -39,14 +40,33 @@ export async function updateProduct(product: Product): Promise<void> {
       product.id,
     ],
   });
+
+  // If this is a component, update related bundles
+  await updateAllBundleStocks(product.id);
+  
+  // If this is a bundle, update its own stock based on components
+  if (await isBundleProduct(product.id)) {
+    await updateBundleStockFromComponents(product.id);
+  }
 }
 
 // Delete a product
 export async function deleteProduct(id: string): Promise<void> {
+  // Get bundles containing this product before deleting
+  const bundleIds = await getBundlesContainingProduct(id);
+  
   await exec({
     sql: 'DELETE FROM products WHERE id = ?',
     bind: [id],
   });
+
+  // After deletion, bundle_items are gone via CASCADE.
+  // We should either delete the bundles that are now incomplete, 
+  // or at least update their stock (which will likely be based on remaining items, which is incorrect).
+  // For safety, if a component is deleted, we delete the bundles that relied on it.
+  for (const bundleId of bundleIds) {
+    await deleteProduct(bundleId);
+  }
 }
 
 // Get a product by ID
@@ -112,14 +132,40 @@ export async function barcodeExists(barcode: string, excludeId?: string): Promis
   }
 }
 
-// Update product stock
+// Update product stock (handles bundles and component linking)
 export async function updateStock(productId: string, quantity: number): Promise<void> {
-  await exec({
-    sql: `
-      UPDATE products
-      SET stock = stock + ?, updatedAt = ?
-      WHERE id = ?
-    `,
-    bind: [quantity, new Date().toISOString(), productId],
-  });
+  const isBundle = await isBundleProduct(productId);
+  const now = new Date().toISOString();
+
+  if (isBundle) {
+    const items = await getBundleItems(productId);
+    // Update components
+    for (const item of items) {
+      await exec({
+        sql: `
+          UPDATE products
+          SET stock = stock + ?, updatedAt = ?
+          WHERE id = ?
+        `,
+        bind: [item.quantity * quantity, now, item.productId],
+      });
+      // Recursively update bundles containing this component (except the current one)
+      // Actually updateAllBundleStocks will handle it.
+      await updateAllBundleStocks(item.productId);
+    }
+    // Update the bundle itself
+    await updateBundleStockFromComponents(productId);
+  } else {
+    // Regular product
+    await exec({
+      sql: `
+        UPDATE products
+        SET stock = stock + ?, updatedAt = ?
+        WHERE id = ?
+      `,
+      bind: [quantity, now, productId],
+    });
+    // Update all bundles that contain this product
+    await updateAllBundleStocks(productId);
+  }
 }
