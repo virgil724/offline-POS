@@ -4,6 +4,8 @@ import { initDatabase } from './db';
 import { Home } from './pages/Home';
 import { Products } from './pages/Products';
 import { ProductForm } from './pages/ProductForm';
+import { VariantProductForm } from './pages/VariantProductForm';
+import { BundleProductForm } from './pages/BundleProductForm';
 import { BarcodeExport } from './pages/BarcodeExport';
 import { History } from './pages/History';
 import { Settings } from './pages/Settings';
@@ -95,6 +97,8 @@ function App() {
           <Route path="/" element={<Home />} />
           <Route path="/products" element={<Products />} />
           <Route path="/products/new" element={<ProductForm />} />
+          <Route path="/products/new-variant" element={<VariantProductForm />} />
+          <Route path="/products/new-bundle" element={<BundleProductForm />} />
           <Route path="/products/:id/edit" element={<ProductForm />} />
           <Route path="/barcode-export" element={<BarcodeExport />} />
           <Route path="/history" element={<History />} />

@@ -1,4 +1,5 @@
-import { Package, QrCode, Trash2 } from 'lucide-react';
+import { Package, QrCode, Trash2, Layers, Sparkles } from 'lucide-react';
+import { isVariantProduct, isBundleProduct } from '../utils/productVariants';
 import type { Product } from '../types';
 import { formatPrice } from '../utils/barcode';
 
@@ -10,6 +11,9 @@ interface ProductCardProps {
 }
 
 export function ProductCard({ product, onClick, onAddToCart, onDelete }: ProductCardProps) {
+  const variant = isVariantProduct(product.name);
+  const bundle = isBundleProduct(product.name);
+  
   return (
     <div
       className="flex gap-3 p-3 bg-white border border-gray-200 rounded-lg shadow-sm dark:bg-gray-800 dark:border-gray-700"
@@ -34,12 +38,24 @@ export function ProductCard({ product, onClick, onAddToCart, onDelete }: Product
 
       {/* Info */}
       <div className="flex flex-col flex-grow min-w-0">
-        <h3
-          className="font-medium text-gray-900 truncate cursor-pointer dark:text-white"
-          onClick={onClick}
-        >
-          {product.name}
-        </h3>
+        <div className="flex items-center gap-2">
+          <h3
+            className="font-medium text-gray-900 truncate cursor-pointer dark:text-white"
+            onClick={onClick}
+          >
+            {product.name}
+          </h3>
+          {variant && (
+            <span className="flex-shrink-0 px-1.5 py-0.5 text-xs bg-purple-100 text-purple-700 rounded dark:bg-purple-900/30 dark:text-purple-400" title="變體商品">
+              <Layers className="w-3 h-3" />
+            </span>
+          )}
+          {bundle && (
+            <span className="flex-shrink-0 px-1.5 py-0.5 text-xs bg-orange-100 text-orange-700 rounded dark:bg-orange-900/30 dark:text-orange-400" title="組合商品">
+              <Sparkles className="w-3 h-3" />
+            </span>
+          )}
+        </div>
 
         <div className="flex items-center gap-1 mt-1 text-sm text-gray-500">
           <QrCode className="w-3 h-3" />

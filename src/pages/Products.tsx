@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, Search, ChevronLeft, ChevronRight, Package, Barcode, AlertCircle } from 'lucide-react';
+import { Plus, Search, ChevronLeft, ChevronRight, Package, Barcode, AlertCircle, Layers, Sparkles } from 'lucide-react';
 import { useProductStore, MAX_PRODUCTS } from '../stores/productStore';
 import { ProductCard } from '../components/ProductCard';
 
@@ -19,6 +19,7 @@ export function Products() {
   } = useProductStore();
 
   const [searchInput, setSearchInput] = useState('');
+  const [showAddMenu, setShowAddMenu] = useState(false);
   const totalPages = Math.ceil(totalCount / pageSize);
 
   useEffect(() => {
@@ -44,6 +45,20 @@ export function Products() {
         alert('刪除失敗，請稍後再試。');
       }
     }
+  };
+
+  const handleAddClick = (e: React.MouseEvent) => {
+    if (totalCount >= MAX_PRODUCTS) {
+      e.preventDefault();
+      alert(`商品數量已達上限 (${MAX_PRODUCTS})，無法再新增。`);
+      return;
+    }
+    setShowAddMenu(!showAddMenu);
+  };
+
+  const handleNavigate = (path: string) => {
+    setShowAddMenu(false);
+    navigate(path);
   };
 
 
@@ -94,23 +109,75 @@ export function Products() {
             <Barcode className="w-5 h-5" />
             <span className="hidden sm:inline">條碼</span>
           </Link>
-          <Link
-            to={totalCount >= MAX_PRODUCTS ? '#' : '/products/new'}
-            onClick={(e) => {
-              if (totalCount >= MAX_PRODUCTS) {
-                e.preventDefault();
-                alert(`商品數量已達上限 (${MAX_PRODUCTS})，無法再新增。`);
-              }
-            }}
-            className={`flex items-center gap-1 px-4 py-2 text-white rounded-lg transition-colors ${
-              totalCount >= MAX_PRODUCTS
-                ? 'bg-gray-400 cursor-not-allowed'
-                : 'bg-blue-600 hover:bg-blue-700'
-            }`}
-          >
-            <Plus className="w-5 h-5" />
-            新增
-          </Link>
+          {/* Add button with dropdown */}
+          <div className="relative">
+            <button
+              onClick={handleAddClick}
+              disabled={totalCount >= MAX_PRODUCTS}
+              className={`flex items-center gap-1 px-4 py-2 text-white rounded-lg transition-colors ${
+                totalCount >= MAX_PRODUCTS
+                  ? 'bg-gray-400 cursor-not-allowed'
+                  : 'bg-blue-600 hover:bg-blue-700'
+              }`}
+            >
+              <Plus className="w-5 h-5" />
+              新增
+            </button>
+
+            {/* Dropdown menu */}
+            {showAddMenu && (
+              <>
+                <div
+                  className="fixed inset-0 z-10"
+                  onClick={() => setShowAddMenu(false)}
+                />
+                <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-lg z-20 dark:bg-gray-800 dark:border-gray-700">
+                  <button
+                    onClick={() => handleNavigate('/products/new')}
+                    className="w-full px-4 py-3 text-left hover:bg-gray-50 border-b border-gray-100 last:border-b-0 first:rounded-t-lg dark:hover:bg-gray-700 dark:border-gray-700"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-blue-100 rounded-lg dark:bg-blue-900/30">
+                        <Package className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-gray-900 dark:text-white">一般商品</p>
+                        <p className="text-xs text-gray-500">單一規格商品</p>
+                      </div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => handleNavigate('/products/new-variant')}
+                    className="w-full px-4 py-3 text-left hover:bg-gray-50 border-b border-gray-100 last:border-b-0 dark:hover:bg-gray-700 dark:border-gray-700"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-purple-100 rounded-lg dark:bg-purple-900/30">
+                        <Layers className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-gray-900 dark:text-white">變體商品</p>
+                        <p className="text-xs text-gray-500">多規格自動生成</p>
+                      </div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => handleNavigate('/products/new-bundle')}
+                    className="w-full px-4 py-3 text-left hover:bg-gray-50 last:rounded-b-lg dark:hover:bg-gray-700"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-orange-100 rounded-lg dark:bg-orange-900/30">
+                        <Sparkles className="w-4 h-4 text-orange-600 dark:text-orange-400" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-gray-900 dark:text-white">組合商品</p>
+                        <p className="text-xs text-gray-500">多商品優惠組合</p>
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
 
         {/* Product limit info */}
